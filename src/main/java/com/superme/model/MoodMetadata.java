@@ -1,6 +1,6 @@
 package com.superme.model;
 
-import com.superme.enums.AgeGroup;
+
 import jakarta.persistence.*;
 import lombok.*;
 

@@ -22,6 +22,7 @@ public class Avatar {
     private String url;
 
     private String avatarImageName;
+    private String avatarImagePath;
 
     @Column(nullable = false)
     private boolean renamedByUser = false;

@@ -16,6 +16,7 @@ import com.superme.service.FeedbackService;
 import com.superme.util.UserJwtUtil;
 import jakarta.annotation.PostConstruct;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.Path;
 import jakarta.validation.Valid;
 import com.superme.service.UserService;
 import com.superme.service.FamilyMemberService;
@@ -25,8 +26,11 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.security.Principal;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -471,5 +475,16 @@ public class UserController {
 
         return ResponseEntity.ok(Map.of("message", "User converted from SELF to PARENT successfully!"));
     }
+
+
+
+
+
+ 
+
+
+
+
+
 
 }
