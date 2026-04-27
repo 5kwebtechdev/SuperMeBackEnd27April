@@ -1,20 +1,22 @@
 networks:
   my_network:
     driver: bridge
+
 services:
   mysql:
     image: mysql:latest
     container_name: mindfull_mysql
     restart: always
     environment:
-      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_ROOT_PASSWORD: root
       MYSQL_DATABASE: mindfull
     ports:
-      - "3307:3306" # Updated port
+      - "3307:3306"
     volumes:
       - mysql_data:/var/lib/mysql
     networks:
       - my_network
+
   phpmyadmin:
     image: phpmyadmin:latest
     container_name: mindfull_phpmyadmin_unique
@@ -23,52 +25,12 @@ services:
       - mysql
     environment:
       PMA_HOST: mysql
-      MYSQL_ROOT_PASSWORD: rootpassword
+      PMA_USER: root
+      PMA_PASSWORD: root
     ports:
-      - "8081:80" # Updated port
+      - "8081:80"
     networks:
       - my_network
-#   zookeeper:
-#     image: confluentinc/cp-zookeeper:latest
-#     container_name: mindfull_zookeeper_unique
-#     restart: always
-#     ports:
-#       - "2182:2181" # Updated port
-#     environment:
-#       ZOOKEEPER_CLIENT_PORT: 2181
-#     networks:
-#       - my_network
 
-#   kafka:
-#     image: confluentinc/cp-kafka:latest
-#     container_name: mindfull_kafka_unique
-#     restart: always
-#     depends_on:
-#       - zookeeper
-#     ports:
-#       - "9093:9092" # Updated port
-#       - "29093:29092" # Updated port
-#     environment:
-#       KAFKA_BROKER_ID: 1
-#       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-#       KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:29093
-#       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
-#       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
-#       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-#     networks:
-#       - my_network
-
-#   kafdrop:
-#     image: obsidiandynamics/kafdrop:latest
-#     container_name: mindfull_kafdrop_unique
-#     restart: always
-#     depends_on:
-#       - kafka
-#     ports:
-#       - "9001:9000" # Updated port
-#     environment:
-#       KAFKA_BROKERCONNECT: kafka:9092
-#     networks:
-#       - my_network
-# volumes:
-#   mysql_data:
+volumes:
+  mysql_data:
