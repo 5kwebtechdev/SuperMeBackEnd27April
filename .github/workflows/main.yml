@@ -1,0 +1,135 @@
+name: Build → Release → Deploy (SSH, private repo, JDK 21)
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build-release-deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write   # needed to create release and upload assets
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: 'maven'
+
+      - name: Build with Maven (skip tests)
+        run: mvn -B -DskipTests package
+
+      - name: Find built jar
+        id: find_jar
+        run: |
+          # adjust this if your project has multiple modules; picks first jar under target/
+          JAR=$(find . -type f -path "*/target/*.jar" ! -path "*/target/*-sources.jar" ! -path "*/target/*-javadoc.jar" | head -n 1)
+          if [ -z "$JAR" ]; then
+            echo "No jar found in target/"
+            exit 1
+          fi
+          echo "jar_path=$JAR" >> $GITHUB_OUTPUT
+          echo "jar_name=$(basename $JAR)" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Release
+        id: create_release
+        uses: actions/create-release@v1
+        with:
+          tag_name: ci-${{ github.run_id }}
+          release_name: CI build ${{ github.run_number }}
+          body: "Automated release from run ${{ github.run_id }}"
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload jar as release asset
+        id: upload_asset
+        uses: actions/upload-release-asset@v1
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ${{ steps.find_jar.outputs.jar_path }}
+          asset_name: ${{ steps.find_jar.outputs.jar_name }}
+          asset_content_type: application/java-archive
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Get release asset download URL and id
+        id: get_asset
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y jq
+          REPO="${{ github.repository }}"
+          TAG="ci-${{ github.run_id }}"
+          release_json=$(curl -sS -H "Authorization: token $GITHUB_TOKEN" "https://api.github.com/repos/$REPO/releases/tags/$TAG")
+          asset_url=$(echo "$release_json" | jq -r '.assets[0].browser_download_url')
+          asset_id=$(echo "$release_json" | jq -r '.assets[0].id')
+          if [ -z "$asset_id" ] || [ "$asset_id" = "null" ]; then
+            echo "Could not find asset id"
+            echo "release_json=$release_json"
+            exit 1
+          fi
+          if [ -z "$asset_url" ] || [ "$asset_url" = "null" ]; then
+            echo "Warning: browser_download_url not found; will use asset id"
+          fi
+          echo "jar_url=${asset_url:-}" >> $GITHUB_OUTPUT
+          echo "asset_id=$asset_id" >> $GITHUB_OUTPUT
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Prepare SSH key from PPK
+        id: prepare_ssh
+        env:
+          SSH_PRIVATE_KEY_PPK: ${{ secrets.SSH_PRIVATE_KEY_PPK }}
+        run: |
+          if [ -z "$SSH_PRIVATE_KEY_PPK" ]; then
+            echo "SSH_PRIVATE_KEY_PPK secret is empty"
+            exit 1
+          fi
+          echo "$SSH_PRIVATE_KEY_PPK" > key.ppk
+          sudo apt-get update -y
+          sudo apt-get install -y putty-tools
+          puttygen key.ppk -O private-openssh -o id_rsa
+          chmod 600 id_rsa
+          # remove the ppk file after conversion
+          shred -u key.ppk 2>/dev/null || rm -f key.ppk
+          echo "ssh_key_path=id_rsa" >> $GITHUB_OUTPUT
+
+      - name: Deploy via SSH (private repo — pass PAT securely and asset id)
+        id: do_ssh_deploy
+        env:
+          JAR_URL: ${{ steps.get_asset.outputs.jar_url }}
+          ASSET_ID: ${{ steps.get_asset.outputs.asset_id }}
+          REPO: ${{ github.repository }}
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+          DOWNLOAD_TOKEN: ${{ secrets.DEPLOY_GITHUB_TOKEN }}
+        run: |
+          SSH_KEY=id_rsa
+          chmod 600 $SSH_KEY
+          SSH_OPTS="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o BatchMode=yes -T"
+
+          # unique remote token file
+          REMOTE_TOKEN_FILE="/tmp/github_token_${GITHUB_RUN_ID}_$$"
+
+          # Pipe the token into remote file, cd to app-backend, run script with asset id and repo, then delete token file
+          printf '%s' "$DOWNLOAD_TOKEN" | \
+            ssh $SSH_OPTS -i $SSH_KEY $SSH_USER@$EC2_HOST \
+              "cat > '$REMOTE_TOKEN_FILE' && chmod 600 '$REMOTE_TOKEN_FILE' && cd app-backend && bash deploy_with_git_pipeline.sh '${JAR_URL}' '$REMOTE_TOKEN_FILE' '${ASSET_ID}' '${REPO}' && (command -v shred >/dev/null 2>&1 && shred -u '$REMOTE_TOKEN_FILE' || rm -f '$REMOTE_TOKEN_FILE')"
+
+          # Clean up private key on runner
+          if command -v shred >/dev/null 2>&1; then
+            shred -u $SSH_KEY || rm -f $SSH_KEY || true
+          else
+            rm -f $SSH_KEY || true
+          fi
+
+      - name: Done
+        run: echo "Release created and deploy triggered. Deployment Complete"
+        env:
+          JAR_URL: ${{ steps.get_asset_url.outputs.jar_url }}
