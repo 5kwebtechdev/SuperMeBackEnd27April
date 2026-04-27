@@ -59,4 +59,4 @@ jobs:
           script: |
             docker pull mohitjava/superme:latest
             docker rm -f superme || true
-            docker run -d -p 8081:8080 --name superme mohitjava/superme:latest
+            docker run -d -p 8081:8080 --restart always --name superme mohitjava/superme:latest
