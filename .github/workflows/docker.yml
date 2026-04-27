@@ -1,4 +1,4 @@
-name: Full CI/CD Pipeline
+name: Docker CI/CD
 
 on:
   push:
@@ -6,7 +6,7 @@ on:
       - main
 
 jobs:
-  build-push-deploy:
+  deploy:
     runs-on: ubuntu-latest
 
     steps:
@@ -28,10 +28,10 @@ jobs:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      - name: Build Docker Image
+      - name: Build Image
         run: docker build -t mohitjava/superme:latest .
 
-      - name: Push Docker Image
+      - name: Push Image
         run: docker push mohitjava/superme:latest
 
       - name: Deploy to Server
