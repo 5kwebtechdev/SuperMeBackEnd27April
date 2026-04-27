@@ -1,9 +1,4 @@
-target/*
-!target/*SNAPSHOT.jar
-
+target/
 .git
-.gitignore
+.github
 node_modules
-Dockerfile
-docker-compose.yaml
-README.md
